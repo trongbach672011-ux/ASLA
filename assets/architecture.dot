@@ -1,0 +1,45 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Arial", labelloc="t", label="ASLA-P1 vs MLA proxy attention architecture"];
+  node [shape=box, style="rounded", fontname="Arial"];
+  edge [fontname="Arial"];
+
+  h [label="hidden state h_t\n(d=224)"];
+
+  subgraph cluster_asla {
+    label="ASLA-P1";
+    aq [label="Q low-rank\n224 → 64 → 224"];
+    az [label="token latent z_t\n224 → 40"];
+    ar [label="router r_t\n224 → 4 + softmax"];
+    ab [label="learned K/V basis banks\n4 × 40 × 2 × 56"];
+    akv [label="materialized K/V\n2 KV heads"];
+    aa [label="RoPE + GQA SDPA"];
+    ao [label="output projection"];
+    aq -> aa;
+    az -> ab;
+    ar -> ab;
+    ab -> akv -> aa -> ao;
+  }
+
+  subgraph cluster_mla {
+    label="MLA proxy";
+    mq [label="Q latent c^Q\n224 → 65"];
+    mqr [label="Q content + Q RoPE"];
+    mkv [label="KV latent c^KV\n224 → 69"];
+    mkvc [label="K content + V"];
+    mkr [label="shared RoPE key\n224 → 24"];
+    mm [label="materialized K/V\n4 heads in training path"];
+    ma [label="SDPA"];
+    mo [label="output projection"];
+    mq -> mqr -> ma;
+    mkv -> mkvc -> mm -> ma;
+    mkr -> ma -> mo;
+  }
+
+  h -> aq;
+  h -> az;
+  h -> ar;
+  h -> mq;
+  h -> mkv;
+  h -> mkr;
+}

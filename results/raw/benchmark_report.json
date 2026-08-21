@@ -1,0 +1,300 @@
+{
+  "profile": "full",
+  "environment": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "device": "cuda",
+    "cuda_name": "Tesla T4",
+    "amp_dtype": "torch.float16"
+  },
+  "config": {
+    "vocab": 32000,
+    "d_model": 224,
+    "n_heads": 4,
+    "head_dim": 56,
+    "n_layers": 4,
+    "ffn_mult": 4,
+    "rope_dim": 24,
+    "num_bases": 4,
+    "asla_latent": 40,
+    "asla_kv_heads": 2,
+    "asla_q_rank": 64,
+    "mla_q_rank": 65,
+    "mla_kv_rank": 69,
+    "seq_len": 256,
+    "batch_size": 8,
+    "steps": 2000,
+    "lr": 0.0003,
+    "weight_decay": 0.01,
+    "grad_clip": 1.0,
+    "eval_batches": 8,
+    "seeds": [
+      1234,
+      2025,
+      3407
+    ],
+    "latency_warmup": 10,
+    "latency_repeats": 30
+  },
+  "fairness": {
+    "paired_common_backbone_initialization": true,
+    "same_data_order": true,
+    "same_optimizer_lr_steps_batch": true,
+    "same_rope_frequency_profile": true,
+    "total_parameter_delta_pct": 0.00025866796345539014,
+    "quality_uses_ce_without_asla_aux": true
+  },
+  "correctness": [
+    {
+      "arch": "ASLA-P1",
+      "padding_pass": true,
+      "padding_max_diff": 4.57763671875e-05,
+      "causal_pass": true,
+      "causal_max_diff": 0.0,
+      "backward_pass": true
+    },
+    {
+      "arch": "MLA",
+      "padding_pass": true,
+      "padding_max_diff": 6.103515625e-05,
+      "causal_pass": true,
+      "causal_max_diff": 0.0,
+      "backward_pass": true
+    }
+  ],
+  "cache_accounting": [
+    {
+      "arch": "ASLA-P1",
+      "cache_mode": "materialized_kv_current_path",
+      "elements_per_token_layer": 224.0,
+      "realized": true
+    },
+    {
+      "arch": "ASLA-P1",
+      "cache_mode": "compressed_state_theoretical",
+      "elements_per_token_layer": 44.0,
+      "realized": false
+    },
+    {
+      "arch": "ASLA-P1",
+      "cache_mode": "source_declared_proxy_at_8k",
+      "elements_per_token_layer": 100.125,
+      "realized": false
+    },
+    {
+      "arch": "MLA",
+      "cache_mode": "materialized_kv_training_path",
+      "elements_per_token_layer": 448.0,
+      "realized": true
+    },
+    {
+      "arch": "MLA",
+      "cache_mode": "paper_optimized_latent_cache",
+      "elements_per_token_layer": 93.0,
+      "realized": false
+    },
+    {
+      "arch": "MHA-reference",
+      "cache_mode": "standard_materialized_kv",
+      "elements_per_token_layer": 448.0,
+      "realized": true
+    }
+  ],
+  "runs": [
+    {
+      "arch": "ASLA-P1",
+      "seed": 1234,
+      "total_params": 9278304,
+      "attention_params_per_layer": 124544,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.04029572361868639,
+      "p50_step_seconds": 0.03994118649984557,
+      "p95_step_seconds": 0.04222421540011965,
+      "train_throughput_tok_s": 50824.25170918827,
+      "peak_vram_gib": 1.0475316047668457,
+      "tail_ce_std": 0.14956053871772823,
+      "eval_loss": 8.943584442138672,
+      "perplexity": 7658.599722238615,
+      "next_token_accuracy": 0.1600341796875,
+      "copy_span_accuracy": 0.0,
+      "retrieval_accuracy": 0.0
+    },
+    {
+      "arch": "MLA",
+      "seed": 1234,
+      "total_params": 9278328,
+      "attention_params_per_layer": 124550,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.03018324559444372,
+      "p50_step_seconds": 0.030114050000065617,
+      "p95_step_seconds": 0.030810351399850333,
+      "train_throughput_tok_s": 67852.21269832578,
+      "peak_vram_gib": 1.043992519378662,
+      "tail_ce_std": 0.08453560896653914,
+      "eval_loss": 8.942421436309814,
+      "perplexity": 7649.697903557642,
+      "next_token_accuracy": 0.16015625,
+      "copy_span_accuracy": 0.0,
+      "retrieval_accuracy": 0.0
+    },
+    {
+      "arch": "ASLA-P1",
+      "seed": 2025,
+      "total_params": 9278304,
+      "attention_params_per_layer": 124544,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.04040947190302416,
+      "p50_step_seconds": 0.04002877599987187,
+      "p95_step_seconds": 0.042643079850017786,
+      "train_throughput_tok_s": 50681.18694831872,
+      "peak_vram_gib": 1.1866040229797363,
+      "tail_ce_std": 0.1309493480213161,
+      "eval_loss": 8.504826784133911,
+      "perplexity": 4938.548712546068,
+      "next_token_accuracy": 0.164794921875,
+      "copy_span_accuracy": 0.021205357142857144,
+      "retrieval_accuracy": 0.0
+    },
+    {
+      "arch": "MLA",
+      "seed": 2025,
+      "total_params": 9278328,
+      "attention_params_per_layer": 124550,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.030107966570702763,
+      "p50_step_seconds": 0.030050105500095015,
+      "p95_step_seconds": 0.03065886994968423,
+      "train_throughput_tok_s": 68021.86375458688,
+      "peak_vram_gib": 1.1825156211853027,
+      "tail_ce_std": 0.08555726506578097,
+      "eval_loss": 8.95576810836792,
+      "perplexity": 7752.480288466741,
+      "next_token_accuracy": 0.16015625,
+      "copy_span_accuracy": 0.0,
+      "retrieval_accuracy": 0.0
+    },
+    {
+      "arch": "ASLA-P1",
+      "seed": 3407,
+      "total_params": 9278304,
+      "attention_params_per_layer": 124544,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.040284744828281045,
+      "p50_step_seconds": 0.039940140999988216,
+      "p95_step_seconds": 0.04214382869995461,
+      "train_throughput_tok_s": 50838.10282849912,
+      "peak_vram_gib": 1.327354907989502,
+      "tail_ce_std": 0.08640971325445779,
+      "eval_loss": 8.96762752532959,
+      "perplexity": 7844.967523041699,
+      "next_token_accuracy": 0.16015625,
+      "copy_span_accuracy": 0.0,
+      "retrieval_accuracy": 0.0
+    },
+    {
+      "arch": "MLA",
+      "seed": 3407,
+      "total_params": 9278328,
+      "attention_params_per_layer": 124550,
+      "train_tokens": 4096000,
+      "mean_step_seconds": 0.030124251619190544,
+      "p50_step_seconds": 0.030069488499975705,
+      "p95_step_seconds": 0.03067307300025277,
+      "train_throughput_tok_s": 67985.09141038143,
+      "peak_vram_gib": 1.3205504417419434,
+      "tail_ce_std": 0.08531979913185424,
+      "eval_loss": 8.969871401786804,
+      "perplexity": 7862.590425387856,
+      "next_token_accuracy": 0.16015625,
+      "copy_span_accuracy": 0.0,
+      "retrieval_accuracy": 0.0
+    }
+  ],
+  "summary": [
+    {
+      "arch": "ASLA-P1",
+      "n_seeds": 3,
+      "eval_loss_mean": 8.805346250534058,
+      "eval_loss_std": 0.26053498752836046,
+      "perplexity_mean": 6814.038652608793,
+      "perplexity_std": 1626.8927825002513,
+      "next_token_accuracy_mean": 0.16166178385416666,
+      "next_token_accuracy_std": 0.002714063500268928,
+      "copy_span_accuracy_mean": 0.007068452380952381,
+      "copy_span_accuracy_std": 0.012242918654690727,
+      "train_throughput_tok_s_mean": 50781.18049533537,
+      "train_throughput_tok_s_std": 86.87344508115908,
+      "p50_step_seconds_mean": 0.039970034499901885,
+      "p50_step_seconds_std": 5.0874317012915045e-05,
+      "p95_step_seconds_mean": 0.04233704131669735,
+      "p95_step_seconds_std": 0.0002680675163061529,
+      "peak_vram_gib_mean": 1.187163511912028,
+      "peak_vram_gib_std": 0.1399124906057664,
+      "tail_ce_std_mean": 0.12230653333116737,
+      "tail_ce_std_std": 0.03245042948096835,
+      "total_params_mean": 9278304.0,
+      "total_params_std": 0.0,
+      "attention_params_per_layer_mean": 124544.0,
+      "attention_params_per_layer_std": 0.0
+    },
+    {
+      "arch": "MLA",
+      "n_seeds": 3,
+      "eval_loss_mean": 8.95602031548818,
+      "eval_loss_std": 0.013726720565947806,
+      "perplexity_mean": 7754.922872470746,
+      "perplexity_std": 106.46727725113236,
+      "next_token_accuracy_mean": 0.16015625,
+      "next_token_accuracy_std": 0.0,
+      "copy_span_accuracy_mean": 0.0,
+      "copy_span_accuracy_std": 0.0,
+      "train_throughput_tok_s_mean": 67953.05595443136,
+      "train_throughput_tok_s_std": 89.24725794708648,
+      "p50_step_seconds_mean": 0.03007788133337878,
+      "p50_step_seconds_std": 3.278802385813188e-05,
+      "p95_step_seconds_mean": 0.030714098116595773,
+      "p95_step_seconds_std": 8.365974279379839e-05,
+      "peak_vram_gib_mean": 1.182352860768636,
+      "peak_vram_gib_std": 0.13827903302268427,
+      "tail_ce_std_mean": 0.08513755772139144,
+      "tail_ce_std_std": 0.0005346533877617436,
+      "total_params_mean": 9278328.0,
+      "total_params_std": 0.0,
+      "attention_params_per_layer_mean": 124550.0,
+      "attention_params_per_layer_std": 0.0
+    }
+  ],
+  "paired_deltas": [
+    {
+      "seed": 1234,
+      "eval_loss_delta_asla_minus_mla": 0.0011630058288574219,
+      "throughput_delta_asla_minus_mla": -17027.960989137508,
+      "peak_vram_delta_asla_minus_mla_gib": 0.0035390853881835938
+    },
+    {
+      "seed": 2025,
+      "eval_loss_delta_asla_minus_mla": -0.4509413242340088,
+      "throughput_delta_asla_minus_mla": -17340.676806268166,
+      "peak_vram_delta_asla_minus_mla_gib": 0.004088401794433594
+    },
+    {
+      "seed": 3407,
+      "eval_loss_delta_asla_minus_mla": -0.0022438764572143555,
+      "throughput_delta_asla_minus_mla": -17146.98858188231,
+      "peak_vram_delta_asla_minus_mla_gib": 0.006804466247558594
+    }
+  ],
+  "winners_by_axis": {
+    "eval_loss": "ASLA-P1",
+    "train_throughput": "MLA",
+    "peak_vram": "MLA"
+  },
+  "limitations": [
+    "ASLA compressed-state cache is analytical; source benchmark explicitly did not realize a KV-cache/static-paged-cache kernel.",
+    "MLA optimized latent decode cache is analytical/paper-faithful here; attention prefill path materializes K/V for ordinary SDPA.",
+    "Attention-only scaling measures prefill, not optimized autoregressive decode.",
+    "3 paired seed(s) are used in this profile; for strong statistical claims, run at least 5–10 seeds.",
+    "ASLA routing/basis path uses generic PyTorch einsum while MLA uses dense Linear projections; custom fused kernels could materially change throughput.",
+    "This is a ~9.28M proxy model; conclusions may not transfer monotonically to large-scale LLMs."
+  ]
+}

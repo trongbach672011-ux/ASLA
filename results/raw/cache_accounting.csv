@@ -1,0 +1,7 @@
+arch,cache_mode,elements_per_token_layer,realized
+ASLA-P1,materialized_kv_current_path,224.0,True
+ASLA-P1,compressed_state_theoretical,44.0,False
+ASLA-P1,source_declared_proxy_at_8k,100.125,False
+MLA,materialized_kv_training_path,448.0,True
+MLA,paper_optimized_latent_cache,93.0,False
+MHA-reference,standard_materialized_kv,448.0,True
