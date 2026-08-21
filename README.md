@@ -1,26 +1,31 @@
 # ASLA-P1 vs MLA
 
-This repo is a small, parameter-matched benchmark of two attention blocks: an experimental **ASLA-P1** implementation and a **Multi-head Latent Attention (MLA)** proxy based on DeepSeek-V2.
+A parameter-matched benchmark comparing an experimental **ASLA-P1** attention block with a **Multi-head Latent Attention (MLA)** proxy based on DeepSeek-V2.
 
-The useful part of the result is the trade-off. ASLA-P1 gets the lower mean eval loss in the frozen three-seed run and has a smaller analytical compressed state. MLA is much faster in the current PyTorch implementation, and its eval loss is far more consistent across seeds.
+This is a small experiment: ~9.28M parameters, three paired seeds, synthetic structured language-modeling data, and one Tesla T4.
 
-The experiment is deliberately small: about 9.28M parameters, three paired seeds, synthetic structured language-modeling data and one Tesla T4. I would not use it as evidence that either architecture wins at LLM scale.
+The main result is a trade-off:
+
+* ASLA-P1 has the lower mean eval loss and a smaller analytical compressed state.
+* MLA is considerably faster in the current PyTorch implementation and is more consistent across seeds.
+
+These results are not intended to establish which architecture is better at LLM scale.
 
 ![ASLA-P1 vs MLA radar](assets/radar_tradeoff.png)
 
 ## Results
 
-| Metric | ASLA-P1 | MLA |
-|---|---:|---:|
-| Eval loss ↓ | **8.8053 ± 0.2605** | 8.9560 ± 0.0137 |
-| Train throughput ↑ | 50,781 tok/s | **67,953 tok/s** |
-| Peak VRAM ↓ | 1.1872 GiB | **1.1824 GiB** |
-| Tail CE std ↓ | 0.1223 | **0.08514** |
-| Prefill p50 @ 2K ↓ | 13.155 ms | **4.347 ms** |
+| Metric                        |               ASLA-P1 |               MLA |
+| ----------------------------- | --------------------: | ----------------: |
+| Eval loss ↓                   |   **8.8053 ± 0.2605** |   8.9560 ± 0.0137 |
+| Train throughput ↑            |          50,781 tok/s |  **67,953 tok/s** |
+| Peak VRAM ↓                   |            1.1872 GiB |    **1.1824 GiB** |
+| Tail CE std ↓                 |                0.1223 |       **0.08514** |
+| Prefill p50 @ 2K ↓            |             13.155 ms |      **4.347 ms** |
 | Analytical compressed state ↓ | **44 el/token/layer** | 93 el/token/layer |
-| Total parameters | 9,278,304 | 9,278,328 |
+| Total parameters              |             9,278,304 |         9,278,328 |
 
-The eval-loss mean needs context. The paired deltas `(ASLA - MLA)` are:
+Paired eval-loss deltas, defined as `ASLA - MLA`:
 
 ```text
 seed 1234   +0.00116
@@ -28,9 +33,13 @@ seed 2025   -0.45094
 seed 3407   -0.00224
 ```
 
-Two seeds are basically ties. Seed `2025` accounts for most of the gap in the mean. With three seeds, that is an interesting signal, not a stable quality result.
+Seeds `1234` and `3407` are effectively ties. Most of the difference in mean eval loss comes from seed `2025`.
 
-On speed, the picture is clearer for this implementation. MLA trains about 33.8% faster and its 2K attention-only prefill latency is about 3.03× lower. ASLA-P1 currently builds routed K/V with generic PyTorch operations, including `einsum`; MLA maps mostly to dense projections. These numbers measure the code in this repo, not an optimized kernel ceiling for either design.
+With only three seeds, this is not enough to claim a stable quality advantage.
+
+Runtime results are less ambiguous for the code tested here. MLA reaches about 33.8% higher training throughput, and its 2K attention-only prefill latency is about 3.03× lower.
+
+The implementation matters here. ASLA-P1 reconstructs routed K/V using generic PyTorch operations, including `einsum`, while MLA maps mostly to dense projections. The benchmark therefore measures the implementations in this repository rather than the best possible kernel for either architecture.
 
 ## Architecture
 
@@ -69,139 +78,216 @@ flowchart TB
     end
 ```
 
-The backbone is identical between runs. Only the attention block changes. Parameter counts differ by 24 parameters over the full 9.28M-parameter model (`0.000259%`). See [`docs/architecture.md`](docs/architecture.md) for the layer-level breakdown.
+The backbone is identical between runs. Only the attention block changes.
+
+The full models differ by 24 parameters:
+
+```text
+ASLA-P1   9,278,304
+MLA       9,278,328
+```
+
+That is a difference of roughly `0.000259%`.
+
+Layer-level details are in [`docs/architecture.md`](docs/architecture.md).
 
 ## Equations
 
-For ASLA-P1, each token gets a latent vector and a four-way routing vector:
+### ASLA-P1
 
-\[
-z_t=W_Zh_t,\qquad r_t=\mathrm{softmax}(W_Rh_t)
-\]
+Each token is projected into a latent vector:
 
-K/V are reconstructed from learned basis banks:
+[
+z_t=W_Zh_t
+]
 
-\[
-k_{t,h,j}=\sum_{b=1}^{4}\sum_{\ell=1}^{40}
+and a four-way routing distribution:
+
+[
+r_t=\mathrm{softmax}(W_Rh_t)
+]
+
+Keys and values are reconstructed from learned basis banks:
+
+[
+k_{t,h,j}=
+\sum_{b=1}^{4}
+\sum_{\ell=1}^{40}
 z_{t,\ell}r_{t,b}B^K_{b,\ell,h,j}
-\]
+]
 
-\[
-v_{t,h,j}=\sum_{b=1}^{4}\sum_{\ell=1}^{40}
+[
+v_{t,h,j}=
+\sum_{b=1}^{4}
+\sum_{\ell=1}^{40}
 z_{t,\ell}r_{t,b}B^V_{b,\ell,h,j}
-\]
+]
 
-If decode caches only `z_t` and the routing state, the analytical state is:
+If decoding stores only the token latent and routing state:
 
-\[
+[
 C_{ASLA}=40+4=44
-\]
+]
 
-The MLA proxy follows the low-rank KV path from DeepSeek-V2:
+elements per token per layer.
 
-\[
-c_t^{KV}=W^{DKV}h_t,\qquad
-k_t^C=W^{UK}c_t^{KV},\qquad
+### MLA proxy
+
+The MLA proxy follows the low-rank KV path described in DeepSeek-V2:
+
+[
+c_t^{KV}=W^{DKV}h_t
+]
+
+[
+k_t^C=W^{UK}c_t^{KV}
+]
+
+[
 v_t^C=W^{UV}c_t^{KV}
-\]
+]
 
-With the dimensions used here, the latent plus decoupled-RoPE state is:
+For the dimensions used in this benchmark:
 
-\[
+[
 C_{MLA}=d_c+d_h^R=69+24=93
-\]
+]
 
-Those `44` and `93` values are analytical cache accounting. The training/prefill path still materializes K/V before SDPA. The full notation is in [`docs/formulas.md`](docs/formulas.md).
+elements per token per layer.
+
+The `44` and `93` values are analytical cache-state sizes. The current training and prefill implementations still materialize K/V before SDPA.
+
+See [`docs/formulas.md`](docs/formulas.md) for the full notation.
 
 ## Benchmark setup
 
-Frozen run:
+| Setting         |            Value |
+| --------------- | ---------------: |
+| GPU             |         Tesla T4 |
+| PyTorch         |     2.10.0+cu128 |
+| Precision       |         FP16 AMP |
+| Layers          |                4 |
+| `d_model`       |              224 |
+| Query heads     |                4 |
+| Head dim        |               56 |
+| Vocabulary      |           32,000 |
+| Sequence length |              256 |
+| Batch size      |                8 |
+| Steps           |            2,000 |
+| Tokens per run  |        4,096,000 |
+| Optimizer       |            AdamW |
+| Learning rate   |             3e-4 |
+| Weight decay    |             0.01 |
+| Grad clip       |              1.0 |
+| Seeds           | 1234, 2025, 3407 |
 
-| Setting | Value |
-|---|---:|
-| GPU | Tesla T4 |
-| PyTorch | 2.10.0+cu128 |
-| Precision | FP16 AMP |
-| Layers | 4 |
-| `d_model` | 224 |
-| Query heads | 4 |
-| Head dim | 56 |
-| Vocabulary | 32,000 |
-| Sequence length | 256 |
-| Batch size | 8 |
-| Steps | 2,000 |
-| Tokens per run | 4,096,000 |
-| Optimizer | AdamW |
-| Learning rate | 3e-4 |
-| Weight decay | 0.01 |
-| Grad clip | 1.0 |
-| Seeds | 1234, 2025, 3407 |
+Both models use the same:
 
-Both models use the same data order, optimizer budget, RoPE profile and paired seeds. Eval cross-entropy does not include ASLA's auxiliary routing/basis regularization.
+* data order;
+* optimizer budget;
+* RoPE configuration;
+* paired seeds.
 
-The attention-only latency test uses sequence lengths from `64` to `2048`, batch size `2`, 10 warmups and 30 measured repeats. It is a prefill benchmark. There is no token-by-token decode benchmark in the frozen result.
+Eval cross-entropy excludes ASLA-P1's auxiliary routing and basis regularization terms.
 
-More detail: [`docs/methodology.md`](docs/methodology.md).
+The attention-only latency benchmark uses:
 
-## ASLA-P1 / MLA readout
+```text
+sequence lengths: 64 → 2048
+batch size:       2
+warmup runs:      10
+measured runs:    30
+```
 
-ASLA-P1 is interesting here for two reasons: the smaller analytical state (`44` vs `93` elements/token/layer), and one seed where its eval loss separates sharply from MLA. The other two seeds do not reproduce that quality gap.
+This measures prefill latency only. The frozen results do not include token-by-token autoregressive decode measurements.
 
-MLA is easier on the current kernels. Its training throughput is higher, the 2K prefill path is much faster, and its tail cross-entropy varies less across the run. Peak VRAM is effectively a tie at this scale.
+See [`docs/methodology.md`](docs/methodology.md).
 
-I would treat cache size and runtime as separate questions. A smaller latent state does not automatically imply a faster implementation, especially when one path uses routing and generic contractions while the other is mostly GEMM-friendly dense projection. This is consistent with the broader attention literature: memory traffic, work partitioning and kernel design can dominate wall-clock behavior even when the high-level arithmetic looks favorable.
+## What the benchmark shows
 
-See [`docs/asla-vs-mla.md`](docs/asla-vs-mla.md) for the compact comparison and [`docs/research.md`](docs/research.md) for paper references.
+ASLA-P1 has two notable results in this run.
+
+First, its analytical compressed state is smaller:
+
+```text
+ASLA-P1   44 elements/token/layer
+MLA       93 elements/token/layer
+```
+
+Second, seed `2025` produces a noticeably lower eval loss for ASLA-P1.
+
+That loss gap does not appear in the other two seeds, so it should not be treated as a robust quality result yet.
+
+MLA performs better on the runtime side:
+
+```text
+higher training throughput
+lower 2K prefill latency
+lower tail CE variance
+```
+
+Peak VRAM is effectively tied at this model size.
+
+The cache-state result and the runtime result should be treated separately. A smaller latent representation does not automatically produce a faster implementation. Routing, tensor contractions, memory movement, and kernel structure all affect wall-clock performance.
+
+A shorter comparison is available in [`docs/asla-vs-mla.md`](docs/asla-vs-mla.md).
+
+Paper notes and references are in [`docs/research.md`](docs/research.md).
 
 ## Radar chart
 
-The radar has six axes:
+The radar chart uses six metrics:
 
-- eval-loss quality
-- training throughput
-- 2K prefill latency
-- peak-VRAM efficiency
-- tail-loss stability
-- analytical cache efficiency
+* eval-loss quality;
+* training throughput;
+* 2K prefill latency;
+* peak-VRAM efficiency;
+* tail-loss stability;
+* analytical cache efficiency.
 
-The score is ratio-to-best. For a lower-is-better metric:
+For lower-is-better metrics:
 
-\[
+[
 score_i=\frac{\min_j x_j}{x_i}
-\]
+]
 
-For a higher-is-better metric:
+For higher-is-better metrics:
 
-\[
+[
 score_i=\frac{x_i}{\max_j x_j}
-\]
+]
 
-This keeps small differences small. With only two models, ordinary min-max scaling would force every metric into `1` versus `0`, even when the raw values are nearly identical.
+This uses ratio-to-best rather than ordinary min-max scaling. With only two models, min-max scaling would otherwise map every comparison to `1` versus `0`, even when the raw difference is negligible.
 
-The exact inputs and normalized values are in [`results.csv`](results.csv).
+Raw and normalized values are in [`results.csv`](results.csv).
 
-## Limits of this benchmark
+## Limitations
 
-The main ones:
+This benchmark has several important limits:
 
-- three paired seeds;
-- ~9.28M-parameter proxy models;
-- synthetic structured LM data;
-- no downstream suite such as code, reasoning or long-context evaluation;
-- no real autoregressive decode cache benchmark;
-- analytical compressed-state numbers are not the memory footprint of the current SDPA path;
-- ASLA-P1 does not have a fused kernel here;
-- all latency numbers are tied to a T4, this PyTorch build and its SDPA backend;
-- the rerun implementation reconstructs the supplied benchmark setup, but is not claimed to be bit-for-bit identical to the original notebook environment.
+* only three paired seeds;
+* ~9.28M-parameter proxy models;
+* synthetic structured LM data;
+* no downstream code, reasoning, or long-context benchmark;
+* no autoregressive decode-cache benchmark;
+* compressed-state numbers are analytical rather than measured SDPA memory usage;
+* ASLA-P1 has no fused kernel in this implementation;
+* latency results are specific to the Tesla T4, PyTorch build, and SDPA backend used here;
+* the rerun code reconstructs the benchmark setup but is not claimed to be bit-for-bit identical to the original notebook environment.
 
-[`docs/limitations.md`](docs/limitations.md) has the longer version.
+More detail is available in [`docs/limitations.md`](docs/limitations.md).
 
-## Reproduce the published artifacts
+## Reproduce
 
-Install dependencies and rebuild `results.csv` plus the radar from the frozen raw files:
+Install the dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
+```
+
+Rebuild `results.csv` and the radar chart from the frozen raw results:
+
+```bash
 python scripts/reproduce.py
 ```
 
@@ -211,7 +297,7 @@ Rebuild the deterministic dataset:
 python scripts/build_benchmark_cache.py
 ```
 
-Run a small smoke benchmark:
+Run a smoke test:
 
 ```bash
 python scripts/run_benchmark.py --profile smoke
@@ -223,16 +309,28 @@ Run the full paired benchmark on CUDA:
 python scripts/run_benchmark.py --profile full --device cuda
 ```
 
-New benchmark output goes to `results/rerun/`. The scripts do not overwrite `results/raw/`.
+New runs are written to:
 
-## Files worth looking at
+```text
+results/rerun/
+```
+
+The scripts do not overwrite:
+
+```text
+results/raw/
+```
+
+## Repository layout
 
 ```text
 README.md
 results.csv
+
 assets/
   architecture.svg
   radar_tradeoff.png
+
 docs/
   architecture.md
   formulas.md
@@ -241,24 +339,33 @@ docs/
   limitations.md
   research.md
   validation.md
+
 results/
-  raw/                 # frozen supplied evidence
-  figures/original/    # original benchmark plots
+  raw/
+  figures/original/
+
 scripts/
   build_benchmark_cache.py
   reproduce.py
   run_benchmark.py
+
 src/
   config.py
   data.py
   models.py
   reporting.py
   scoring.py
+
 tests/
 ```
 
 ## References
 
-- DeepSeek-AI, **DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model** — https://arxiv.org/abs/2405.04434
-- Tri Dao et al., **FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness** — https://arxiv.org/abs/2205.14135
-- Tri Dao, **FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning** — https://arxiv.org/abs/2307.08691
+* DeepSeek-AI, **DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model**
+  https://arxiv.org/abs/2405.04434
+
+* Tri Dao et al., **FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness**
+  https://arxiv.org/abs/2205.14135
+
+* Tri Dao, **FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning**
+  https://arxiv.org/abs/2307.08691
